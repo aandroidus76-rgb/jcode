@@ -521,6 +521,25 @@ fn provider_guardrail_notices_wrap_without_truncating_the_error() {
 }
 
 #[test]
+fn repeated_guardrail_stop_notice_wraps_without_truncation() {
+    let content = "🛑 The provider refused 2 turns in a row, so we stopped poking. The same request will keep getting refused. Rephrase or narrow the task, then /poke to resume.";
+    let msg = DisplayMessage::system(content);
+    let lines = render_system_message(&msg, 48, crate::config::DiffDisplayMode::Off);
+
+    assert!(lines.len() > 1, "{lines:?}");
+    assert!(lines.iter().all(|line| line.width() <= 48), "{lines:?}");
+    let rendered = lines
+        .iter()
+        .map(extract_line_text)
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        rendered.split_whitespace().collect::<Vec<_>>().join(" "),
+        content.split_whitespace().collect::<Vec<_>>().join(" ")
+    );
+}
+
+#[test]
 fn ordinary_multiline_and_markdown_notices_are_one_terminal_row() {
     let saved = markdown::center_code_blocks();
     for centered in [false, true] {

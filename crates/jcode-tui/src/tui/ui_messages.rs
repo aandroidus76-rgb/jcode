@@ -84,6 +84,7 @@ fn render_single_line_system_notice(
         || msg.content.starts_with("Authentication Status:")
         || msg.content.starts_with("[guardrail] ")
         || msg.content.starts_with("[empty response] ")
+        || msg.content.starts_with("🛑 The provider refused ")
         || (msg.content.contains('\n') && msg.content.contains("/cancel"))
     {
         return None;
