@@ -2129,7 +2129,7 @@ impl BridgeState {
                     vec![]
                 }
             }
-            "turn_stopped" | "provider_guardrail" => {
+            "turn_stopped" | "provider_guardrail" | "provider_empty_response" => {
                 if self.session_id.is_none() || self.turn_stop_reported {
                     return vec![];
                 }
@@ -2137,6 +2137,8 @@ impl BridgeState {
                 self.observed_turn_active = true;
                 let reason = if kind == "provider_guardrail" {
                     jcode_harness_api::TurnStopReason::ProviderGuardrail
+                } else if kind == "provider_empty_response" {
+                    jcode_harness_api::TurnStopReason::Unknown
                 } else {
                     serde_json::from_value(event["reason"].clone())
                         .unwrap_or(jcode_harness_api::TurnStopReason::Unknown)

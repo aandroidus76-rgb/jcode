@@ -1113,20 +1113,25 @@ fn handle_server_event_inner(
                 .as_deref()
                 .filter(|r| !r.trim().is_empty())
                 .unwrap_or("guardrail");
-            // Mark the turn so the Done handler can count consecutive
-            // guardrail stops and stop auto-poke/overnight loops that would
-            // otherwise re-send the refused request forever.
             app.turn_guardrail_stopped = true;
-            // Plain text prefix: U+1F6E1 shield renders poorly in some
-            // terminals (kitty shows a narrow monochrome glyph).
             app.push_display_message(DisplayMessage::system(format!("[guardrail] {}", message)));
             app.set_status_notice(format!("Provider guardrail: {}", label));
-            // Guardrail refusals are model-side policy stops: retrying the
-            // same model usually refuses again, but a stronger model often
-            // handles the same legitimate request. Offer a one-keypress
-            // reroute to the strongest Anthropic route and resend. The offer
-            // sets its own (more actionable) status notice when armed.
             app.offer_guardrail_reroute();
+            true
+        }
+        ServerEvent::ProviderEmptyResponse {
+            stop_reason,
+            message,
+        } => {
+            crate::logging::warn(&format!(
+                "PROVIDER_EMPTY_RESPONSE_EVENT session={:?} stop_reason={:?}",
+                app.remote_session_id, stop_reason
+            ));
+            app.push_display_message(DisplayMessage::system(format!(
+                "[empty response] {}",
+                message
+            )));
+            app.set_status_notice("Provider returned an empty response");
             true
         }
         ServerEvent::TurnState { .. }

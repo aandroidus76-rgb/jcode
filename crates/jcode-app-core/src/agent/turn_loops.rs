@@ -1041,8 +1041,8 @@ impl Agent {
                 )? {
                     continue;
                 }
-                // Surface silent guardrail/refusal stops instead of returning
-                // an empty final answer with no explanation.
+                // Surface silent provider stops instead of returning an empty
+                // final answer with no explanation.
                 if let Some(notice) = Self::provider_guardrail_notice(
                     stop_reason.as_deref(),
                     visible_text_is_empty,
@@ -1053,11 +1053,16 @@ impl Agent {
                         Self::empty_turn_log_event(stop_reason.as_deref()),
                         stop_reason
                     ));
+                    let label = if Self::is_guardrail_stop_reason(stop_reason.as_deref()) {
+                        "provider guardrail"
+                    } else {
+                        "empty response"
+                    };
                     if print_output {
-                        println!("\n[provider guardrail] {}", notice);
+                        println!("\n[{}] {}", label, notice);
                     }
                     if text_content.trim().is_empty() {
-                        text_content = format!("[provider guardrail] {}", notice);
+                        text_content = format!("[{}] {}", label, notice);
                     }
                 }
                 logging::info("Turn complete - no tool calls, returning");

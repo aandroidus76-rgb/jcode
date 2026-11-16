@@ -55,6 +55,7 @@ impl StopLog {
                 self.reason = None;
             }
             ServerEvent::ProviderGuardrail { .. } => self.reason = Some("guardrail"),
+            ServerEvent::ProviderEmptyResponse { .. } => self.reason = Some("unknown"),
             ServerEvent::Done { id } | ServerEvent::Error { id, .. } => {
                 let reason = self.reason.unwrap_or_else(|| {
                     if matches!(event, ServerEvent::Error { .. }) {
@@ -153,6 +154,22 @@ mod tests {
         assert_eq!(
             log.outcome(&ServerEvent::Done { id: 3 }),
             Some((3, "normal"))
+        );
+    }
+
+    #[test]
+    fn empty_provider_response_is_not_logged_as_a_guardrail() {
+        let mut log = StopLog::default();
+        assert_eq!(
+            log.outcome(&ServerEvent::ProviderEmptyResponse {
+                stop_reason: Some("unknown".into()),
+                message: "provider returned an empty response".into(),
+            }),
+            None
+        );
+        assert_eq!(
+            log.outcome(&ServerEvent::Done { id: 5 }),
+            Some((5, "unknown"))
         );
     }
 

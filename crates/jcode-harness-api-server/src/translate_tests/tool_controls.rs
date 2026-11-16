@@ -332,6 +332,22 @@ fn guardrail_stop_preserves_provider_reason_and_finishes_observer_turn() {
 }
 
 #[test]
+fn empty_provider_response_is_not_translated_as_a_guardrail() {
+    let mut state = state_with_session();
+    let frames = state.legacy_event_to_api(
+        &json!({"type":"provider_empty_response","stop_reason":"unknown","message":"Provider returned an empty response"}),
+    );
+    assert!(matches!(
+        &frames[0].event,
+        ApiEvent::TurnStopped {
+            reason: jcode_harness_api::TurnStopReason::Unknown,
+            provider_stop_reason: Some(reason),
+            ..
+        } if reason == "unknown"
+    ));
+}
+
+#[test]
 fn legacy_interrupt_finishes_observer_turn_but_idle_cancel_is_not_a_stop() {
     let mut state = state_with_session();
     let idle = state.legacy_event_to_api(&json!({"type":"interrupted"}));

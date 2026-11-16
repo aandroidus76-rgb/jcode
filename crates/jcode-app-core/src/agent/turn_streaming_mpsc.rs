@@ -1394,9 +1394,9 @@ impl Agent {
                         {
                             let _ = event_tx.send(event);
                         }
-                        // Surface silent guardrail/refusal stops: the provider
-                        // ended the turn with no visible output (e.g. Anthropic
-                        // stop_reason "refusal", or a reasoning-only response).
+                        // Surface silent provider stops: the provider ended
+                        // without visible output, whether from a guardrail or
+                        // an empty upstream response.
                         // Only when the provider actually finished the message
                         // (saw_message_end) and the user did not cancel, so
                         // interrupted turns never show a spurious notice.
@@ -1414,10 +1414,18 @@ impl Agent {
                                 stop_reason,
                                 reasoning_content.len()
                             ));
-                            let _ = event_tx.send(ServerEvent::ProviderGuardrail {
-                                stop_reason: stop_reason.clone(),
-                                message: notice,
-                            });
+                            let event = if Self::is_guardrail_stop_reason(stop_reason.as_deref()) {
+                                ServerEvent::ProviderGuardrail {
+                                    stop_reason: stop_reason.clone(),
+                                    message: notice,
+                                }
+                            } else {
+                                ServerEvent::ProviderEmptyResponse {
+                                    stop_reason: stop_reason.clone(),
+                                    message: notice,
+                                }
+                            };
+                            let _ = event_tx.send(event);
                         }
                         break;
                     }

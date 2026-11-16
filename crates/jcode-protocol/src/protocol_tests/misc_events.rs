@@ -632,6 +632,27 @@ fn test_provider_guardrail_event_roundtrip() -> Result<()> {
 }
 
 #[test]
+fn test_provider_empty_response_event_roundtrip() -> Result<()> {
+    let event = ServerEvent::ProviderEmptyResponse {
+        stop_reason: Some("unknown".to_string()),
+        message: "The provider returned an empty response".to_string(),
+    };
+    let json = encode_event(&event);
+    assert!(json.contains("\"type\":\"provider_empty_response\""));
+    let decoded = parse_event_json(json.trim())?;
+    let ServerEvent::ProviderEmptyResponse {
+        stop_reason,
+        message,
+    } = decoded
+    else {
+        return Err(anyhow!("expected ProviderEmptyResponse event"));
+    };
+    assert_eq!(stop_reason.as_deref(), Some("unknown"));
+    assert_eq!(message, "The provider returned an empty response");
+    Ok(())
+}
+
+#[test]
 fn test_message_end_carries_provider_stop_reason() -> Result<()> {
     // `max_tokens` is the only signal that the output budget truncated a turn.
     // Dropping it made a truncated benchmark run look like a clean one, so the
@@ -761,7 +782,13 @@ fn context_cap_wire_roundtrip() -> Result<()> {
 #[test]
 fn subscribe_and_resume_client_name_is_optional_and_compatible() {
     let old: Request = serde_json::from_str(r#"{"type":"subscribe","id":1}"#).unwrap();
-    assert!(matches!(old, Request::Subscribe { client_name: None, .. }));
+    assert!(matches!(
+        old,
+        Request::Subscribe {
+            client_name: None,
+            ..
+        }
+    ));
     let new: Request =
         serde_json::from_str(r#"{"type":"subscribe","id":1,"client_name":"jcode-ios/1.0"}"#)
             .unwrap();
@@ -772,7 +799,13 @@ fn subscribe_and_resume_client_name_is_optional_and_compatible() {
         r#"{"type":"resume_session","id":2,"session_id":"s","client_name":"jcode-ios/1.0"}"#,
     )
     .unwrap();
-    assert!(matches!(resume, Request::ResumeSession { client_name: Some(_), .. }));
+    assert!(matches!(
+        resume,
+        Request::ResumeSession {
+            client_name: Some(_),
+            ..
+        }
+    ));
     let json = serde_json::to_string(&old).unwrap();
     assert!(!json.contains("client_name"));
 }

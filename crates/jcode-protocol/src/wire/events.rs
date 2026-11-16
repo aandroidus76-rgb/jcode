@@ -469,17 +469,26 @@ pub enum ServerEvent {
     #[serde(rename = "interrupted")]
     Interrupted,
 
-    /// The provider ended the turn without any visible assistant output,
-    /// typically a model-side guardrail/refusal stop (e.g. Anthropic
-    /// `stop_reason: "refusal"`), or a reasoning-only response with no final
-    /// text. Rendered as a system notice so the user learns why no response
-    /// arrived instead of the turn ending silently.
+    /// The provider ended the turn without visible assistant output after a
+    /// model-side guardrail/refusal stop (e.g. Anthropic
+    /// `stop_reason: "refusal"`) or a reasoning-only response. Rendered as a
+    /// system notice and treated as a guardrail by clients.
     #[serde(rename = "provider_guardrail")]
     ProviderGuardrail {
         /// Raw provider stop reason, when known (e.g. "refusal").
         #[serde(default, skip_serializing_if = "Option::is_none")]
         stop_reason: Option<String>,
         /// Human-readable explanation for display.
+        message: String,
+    },
+
+    /// The provider ended the turn without visible assistant output for a
+    /// non-guardrail reason, such as a transient empty upstream response.
+    /// Rendered as a system notice, but does not count as a refusal.
+    #[serde(rename = "provider_empty_response")]
+    ProviderEmptyResponse {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        stop_reason: Option<String>,
         message: String,
     },
 

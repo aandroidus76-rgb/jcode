@@ -935,6 +935,70 @@ fn test_repeated_guardrail_refusals_stop_auto_poke_loop() {
     });
 }
 
+#[test]
+fn test_empty_provider_responses_do_not_count_as_guardrail_refusals() {
+    with_temp_jcode_home(|| {
+        let mut app = create_test_app();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let mut remote = crate::tui::backend::RemoteConnection::dummy();
+        remote.mark_history_loaded();
+
+        app.is_remote = true;
+        app.auto_poke_incomplete_todos = true;
+        crate::todo::save_todos(
+            &app.session.id,
+            &[crate::todo::TodoItem {
+                id: "todo-1".to_string(),
+                content: "Never-finishing task".to_string(),
+                status: "in_progress".to_string(),
+                priority: "high".to_string(),
+                ..Default::default()
+            }],
+        )
+        .expect("save incomplete todo");
+
+        for id in [1, 2] {
+            app.is_processing = true;
+            app.status = ProcessingStatus::Streaming;
+            app.current_message_id = Some(id);
+            app.handle_server_event(
+                crate::protocol::ServerEvent::ProviderEmptyResponse {
+                    stop_reason: Some("unknown".to_string()),
+                    message: "The model ended its turn without any visible output; the provider returned an empty response.".to_string(),
+                },
+                &mut remote,
+            );
+            assert!(
+                !app.turn_guardrail_stopped,
+                "an empty response must not be marked as a refusal"
+            );
+            app.handle_server_event(crate::protocol::ServerEvent::Done { id }, &mut remote);
+            app.queued_messages.clear();
+            app.hidden_queued_system_messages.clear();
+            app.pending_queued_dispatch = false;
+        }
+
+        assert_eq!(app.consecutive_guardrail_stops, 0);
+        assert!(
+            app.auto_poke_incomplete_todos,
+            "transient empty responses must not trip the refusal circuit breaker"
+        );
+        assert!(
+            !app.display_messages()
+                .iter()
+                .any(|message| message.content.contains("provider refused")),
+            "transient empty responses must not be reported as refusals"
+        );
+        assert!(
+            app.display_messages()
+                .iter()
+                .any(|message| message.content.starts_with("[empty response] ")),
+            "the user should still see why the turn had no answer"
+        );
+    });
+}
+
 /// Legacy gate observations must never queue a digest or weak-point notice.
 /// Normal completion still requests a final response and ends the poke cycle.
 #[test]
