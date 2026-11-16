@@ -1483,7 +1483,7 @@ fn notification_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'static>> {
     if spans.is_empty() || width == 0 {
         return Vec::new();
     }
-    let line = Line::from(spans);
+    let line = fit_notification_line(Line::from(spans), width);
     // Notifications must never occupy a second row on narrow terminals.
     let lines = vec![line];
     lines
@@ -1496,6 +1496,10 @@ fn notification_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'static>> {
             }
         })
         .collect()
+}
+
+fn fit_notification_line(line: Line<'static>, width: u16) -> Line<'static> {
+    jcode_tui_render::truncate_line_with_ellipsis_to_width(&line, usize::from(width))
 }
 
 pub(super) fn notification_height(app: &dyn TuiState, width: u16) -> u16 {

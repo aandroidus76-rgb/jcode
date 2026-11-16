@@ -835,6 +835,27 @@ fn normalize_repaint_sensitive_notice_text_drops_warning_variation_selector() {
     );
 }
 
+#[test]
+fn notification_line_fits_narrow_width_with_ellipsis() {
+    let line = Line::from(vec![
+        Span::styled("⌨ ", Style::default().fg(Color::Cyan)),
+        Span::styled(
+            "Ctrl+Shift+P isn't bound · nearest: Ctrl+P → toggle auto-poke",
+            Style::default().fg(Color::Cyan),
+        ),
+    ]);
+
+    let fitted = fit_notification_line(line, 24);
+    let text = line_text(&fitted);
+
+    assert!(fitted.width() <= 24, "{text:?} is wider than 24 cells");
+    assert!(text.ends_with('…'), "{text:?} should signal truncation");
+    assert!(
+        text.starts_with("⌨ Ctrl+"),
+        "{text:?} should retain the hint prefix"
+    );
+}
+
 fn voice_preview(recording: bool, levels: Vec<f32>) -> crate::tui::VoiceComposerPreview {
     crate::tui::VoiceComposerPreview {
         recording,
