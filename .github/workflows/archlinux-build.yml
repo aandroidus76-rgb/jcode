@@ -1,0 +1,62 @@
+name: Arch Linux Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: archlinux-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JCODE_CI: "1"
+  CARGO_BUILD_RUSTC_WRAPPER: ""
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build:
+    name: Build on Arch Linux (x86_64)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    timeout-minutes: 120
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel ca-certificates cmake git pkgconf rust
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Report Arch and Rust versions
+        run: |
+          cat /etc/os-release
+          rustc --version
+          cargo --version
+
+      - name: Build jcode
+        run: cargo build --locked --release -p jcode --bin jcode
+
+      - name: Verify binary and package build artifact
+        run: |
+          set -eu
+          ./target/release/jcode --no-update --no-selfdev --version
+          mkdir -p dist
+          tar -czf dist/jcode-archlinux-x86_64.tar.gz \
+            -C target/release jcode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jcode-archlinux-x86_64
+          path: dist/jcode-archlinux-x86_64.tar.gz
+          if-no-files-found: error
