@@ -107,6 +107,7 @@ fn captured_request_for_host(host: &str, conversation_id: &str) -> String {
             ProviderAuth::None {
                 label: "test".to_string(),
             },
+            reqwest::header::HeaderMap::new(),
             false,
             conversation_id.to_string(),
             serde_json::json!({"model": "m", "messages": [], "stream": true}),

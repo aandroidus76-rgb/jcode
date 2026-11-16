@@ -60,6 +60,7 @@ pub(super) async fn run_stream_with_retries(
     client: Client,
     api_base: String,
     auth: ProviderAuth,
+    request_headers: reqwest::header::HeaderMap,
     send_openrouter_headers: bool,
     conversation_id: String,
     request: Value,
@@ -123,6 +124,7 @@ pub(super) async fn run_stream_with_retries(
             attempt_client,
             api_base.clone(),
             auth.clone(),
+            &request_headers,
             send_openrouter_headers,
             &conversation_id,
             &request,
@@ -193,6 +195,7 @@ async fn stream_response(
     client: Client,
     api_base: String,
     auth: ProviderAuth,
+    request_headers: &reqwest::header::HeaderMap,
     send_openrouter_headers: bool,
     conversation_id: &str,
     request: &Value,
@@ -226,6 +229,7 @@ async fn stream_response(
         auth.apply(
             client
                 .post(&url)
+                .headers(request_headers.clone())
                 .header("Content-Type", "application/json")
                 .header("Accept-Encoding", "identity"),
         )

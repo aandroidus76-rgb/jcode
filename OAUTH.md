@@ -364,6 +364,18 @@ jcode --provider-profile my-api auth-test --no-tool-smoke
 
 This writes `[providers.my-api]` in `~/.jcode/config.toml` and stores the key in jcode's private app config dir, for example `~/.config/jcode/provider-my-api.env`. For localhost servers, use `--no-api-key`.
 
+Named OpenAI-compatible profiles can select the Responses API and attach custom
+headers to inference requests:
+
+```toml
+[providers.my-api]
+type = "openai-compatible"
+base_url = "https://llm.example.com/v1"
+api = "responses" # or "chat-completions"; unset keeps automatic selection
+api_key_env = "MY_API_KEY"
+headers = { "OpenAI-Organization" = "org_example", "X-Team" = "engineering" }
+```
+
 Notable presets include:
 
 ### Fireworks

@@ -423,10 +423,12 @@ pub struct NamedProviderConfig {
     #[serde(rename = "type")]
     pub provider_type: NamedProviderType,
     pub base_url: String,
+    /// OpenAI-compatible API protocol: `responses` or `chat-completions`.
+    /// Unset keeps endpoint/model-specific automatic selection.
     pub api: Option<String>,
     pub auth: NamedProviderAuth,
     pub auth_header: Option<String>,
-    /// Extra HTTP headers sent with every request to this provider.
+    /// Extra HTTP headers sent with chat inference requests to this provider.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub headers: std::collections::BTreeMap<String, String>,
     pub api_key_env: Option<String>,

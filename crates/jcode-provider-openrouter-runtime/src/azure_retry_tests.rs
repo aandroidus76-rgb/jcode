@@ -107,6 +107,7 @@ fn run_azure(base: String) -> Vec<Result<StreamEvent>> {
                 ProviderAuth::None {
                     label: "test".into(),
                 },
+                reqwest::header::HeaderMap::new(),
                 false,
                 "azure-retry-test".into(),
                 serde_json::json!({"model":"deployment", "input":[], "stream":true}),

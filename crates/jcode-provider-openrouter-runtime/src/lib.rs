@@ -44,7 +44,7 @@ use jcode_provider_openrouter::{
 };
 use models_catalog_parse::parse_openai_compatible_models_response;
 use reqwest::Client;
-use reqwest::header::HeaderName;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -827,6 +827,87 @@ pub fn maybe_schedule_standard_openrouter_catalog_refresh(context: &'static str)
 /// env-file edits take effect without a process restart (issue #1386).
 type AuthResolver = Arc<dyn Fn() -> anyhow::Result<ProviderAuth> + Send + Sync>;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ApiMode {
+    #[default]
+    Auto,
+    ChatCompletions,
+    Responses,
+}
+
+#[derive(Clone, Debug, Default)]
+struct NamedProviderRequestConfig {
+    api_mode: ApiMode,
+    headers: HeaderMap,
+}
+
+impl NamedProviderRequestConfig {
+    fn from_profile(
+        profile_name: &str,
+        profile: &jcode_base::config::NamedProviderConfig,
+    ) -> Result<Self> {
+        let api_mode = match profile
+            .api
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_ascii_lowercase)
+            .as_deref()
+        {
+            None => ApiMode::Auto,
+            Some("responses" | "openai-responses") => ApiMode::Responses,
+            Some("chat-completions" | "openai-chat-completions" | "openai-completions") => {
+                ApiMode::ChatCompletions
+            }
+            Some(api) => anyhow::bail!(
+                "Provider profile '{}' has unsupported api '{}'; expected responses or chat-completions",
+                profile_name,
+                api
+            ),
+        };
+
+        let mut headers = HeaderMap::new();
+        for (name, value) in &profile.headers {
+            let header_name = HeaderName::from_bytes(name.as_bytes()).map_err(|error| {
+                anyhow::anyhow!(
+                    "Provider profile '{}' has invalid custom header name '{}': {}",
+                    profile_name,
+                    name,
+                    error
+                )
+            })?;
+            let header_value = HeaderValue::from_bytes(value.as_bytes()).map_err(|error| {
+                anyhow::anyhow!(
+                    "Provider profile '{}' has invalid value for custom header '{}': {}",
+                    profile_name,
+                    name,
+                    error
+                )
+            })?;
+            if headers.contains_key(&header_name) {
+                anyhow::bail!(
+                    "Provider profile '{}' defines custom header '{}' more than once",
+                    profile_name,
+                    name
+                );
+            }
+            headers.insert(header_name, header_value);
+        }
+
+        Ok(Self { api_mode, headers })
+    }
+
+    fn uses_responses_api(&self, api_base: &str, profile_id: Option<&str>, model: &str) -> bool {
+        match self.api_mode {
+            ApiMode::Responses => true,
+            ApiMode::ChatCompletions => false,
+            ApiMode::Auto => {
+                opencode_go_responses::model_uses_responses_api(api_base, profile_id, model)
+            }
+        }
+    }
+}
+
 pub struct OpenRouterProvider {
     client: Client,
     model: Arc<RwLock<String>>,
@@ -855,6 +936,7 @@ pub struct OpenRouterProvider {
     /// Explicit per-model image-input capability from named-provider `models[].input`.
     /// Missing entries mean unspecified and preserve the provider-level fallback.
     static_image_input_support: HashMap<String, bool>,
+    request_config: NamedProviderRequestConfig,
     send_openrouter_headers: bool,
     /// Stable per-conversation identifier sent as `x-opencode-session` to
     /// OpenCode (Zen / Go) endpoints, which require it for routing (issue #1167).
@@ -1364,6 +1446,7 @@ impl OpenRouterProvider {
         let api_base = normalize_api_base(&profile.base_url).ok_or_else(|| {
             anyhow::anyhow!("Provider profile '{}' has invalid base_url", profile_name)
         })?;
+        let request_config = NamedProviderRequestConfig::from_profile(profile_name, profile)?;
         let auth_profile = profile.clone();
         let auth: AuthResolver = Arc::new(move || {
             let key_env = auth_profile
@@ -1489,6 +1572,7 @@ impl OpenRouterProvider {
             static_models,
             static_context_limits,
             static_image_input_support,
+            request_config,
             send_openrouter_headers: false,
             conversation_id: new_conversation_id(),
             models_cache: Arc::new(RwLock::new(ModelsCache::default())),
@@ -1731,6 +1815,7 @@ impl OpenRouterProvider {
             static_models,
             static_context_limits,
             static_image_input_support: HashMap::new(),
+            request_config: NamedProviderRequestConfig::default(),
             send_openrouter_headers,
             conversation_id: new_conversation_id(),
             models_cache: Arc::new(RwLock::new(ModelsCache::default())),
@@ -1788,6 +1873,7 @@ impl OpenRouterProvider {
             static_models,
             static_context_limits,
             static_image_input_support: HashMap::new(),
+            request_config: NamedProviderRequestConfig::default(),
             send_openrouter_headers: false,
             conversation_id: new_conversation_id(),
             models_cache: Arc::new(RwLock::new(ModelsCache::default())),
@@ -1837,6 +1923,7 @@ impl OpenRouterProvider {
             static_models: Vec::new(),
             static_context_limits: HashMap::new(),
             static_image_input_support: HashMap::new(),
+            request_config: NamedProviderRequestConfig::default(),
             send_openrouter_headers: true,
             conversation_id: new_conversation_id(),
             models_cache: Arc::new(RwLock::new(ModelsCache::default())),
@@ -2044,6 +2131,7 @@ impl OpenRouterProvider {
                 static_models: Vec::new(),
                 static_context_limits: HashMap::new(),
                 static_image_input_support: HashMap::new(),
+                request_config: NamedProviderRequestConfig::default(),
                 send_openrouter_headers: true,
                 conversation_id: new_conversation_id(),
                 models_cache: Arc::new(RwLock::new(ModelsCache::default())),

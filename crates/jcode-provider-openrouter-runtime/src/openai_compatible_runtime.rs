@@ -76,6 +76,7 @@ impl OpenRouterProvider {
             static_models,
             static_context_limits,
             static_image_input_support: HashMap::new(),
+            request_config: NamedProviderRequestConfig::default(),
             send_openrouter_headers: false,
             conversation_id: new_conversation_id(),
             models_cache: Arc::new(RwLock::new(ModelsCache::default())),

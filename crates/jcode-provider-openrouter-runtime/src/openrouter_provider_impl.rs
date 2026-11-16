@@ -1,4 +1,3 @@
-use super::opencode_go_responses::model_uses_responses_api;
 use super::openrouter_sse_stream::run_stream_with_retries;
 use super::*;
 use jcode_base::provider::{ModelCatalogRefreshSummary, summarize_model_catalog_refresh};
@@ -119,8 +118,11 @@ impl Provider for OpenRouterProvider {
             return self.complete_azure_responses(messages, tools, system).await;
         }
         let model = self.model.read().await.clone();
-        let responses_api =
-            model_uses_responses_api(&self.api_base, self.profile_id.as_deref(), &model);
+        let responses_api = self.request_config.uses_responses_api(
+            &self.api_base,
+            self.profile_id.as_deref(),
+            &model,
+        );
         let reasoning_effort = self.reasoning_effort();
         let thinking_override = Self::thinking_override();
         // Moonshot's dedicated Kimi coding endpoint enables thinking server-side
@@ -356,6 +358,7 @@ impl Provider for OpenRouterProvider {
         let client = self.client.clone();
         let api_base = self.api_base.clone();
         let auth = (self.auth)()?;
+        let request_headers = self.request_config.headers.clone();
         let send_openrouter_headers = self.send_openrouter_headers;
         let conversation_id = self.conversation_id.clone();
         let request_for_retries = request;
@@ -376,6 +379,7 @@ impl Provider for OpenRouterProvider {
                 client,
                 api_base,
                 auth,
+                request_headers,
                 send_openrouter_headers,
                 conversation_id,
                 request_for_retries,
@@ -907,6 +911,7 @@ impl Provider for OpenRouterProvider {
             static_models: self.static_models.clone(),
             static_context_limits: self.static_context_limits.clone(),
             static_image_input_support: self.static_image_input_support.clone(),
+            request_config: self.request_config.clone(),
             send_openrouter_headers: self.send_openrouter_headers,
             // A fork is a new conversation (new session or subagent), so it
             // gets its own stable id.
@@ -1006,6 +1011,7 @@ impl OpenRouterProvider {
                 client,
                 api_base,
                 auth,
+                reqwest::header::HeaderMap::new(),
                 false,
                 conversation_id,
                 request,

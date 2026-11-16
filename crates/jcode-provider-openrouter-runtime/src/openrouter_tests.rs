@@ -203,6 +203,53 @@ fn named_openai_compatible_provider_sets_catalog_cache_namespace() {
 }
 
 #[test]
+fn named_openai_compatible_responses_api_sends_custom_headers() {
+    let _lock = ENV_LOCK.lock();
+    let _namespace = EnvVarGuard::remove("JCODE_OPENROUTER_CACHE_NAMESPACE");
+    let (base_url, captured) = spawn_single_response_chat_server();
+    let profile = jcode_base::config::NamedProviderConfig {
+        base_url,
+        api: Some("responses".to_string()),
+        auth: jcode_base::config::NamedProviderAuth::None,
+        default_model: Some("test-model".to_string()),
+        headers: std::collections::BTreeMap::from([
+            ("X-Tenant-ID".to_string(), "tenant-123".to_string()),
+            ("OpenAI-Organization".to_string(), "org-test".to_string()),
+        ]),
+        ..Default::default()
+    };
+    let provider = OpenRouterProvider::new_named_openai_compatible("custom", &profile)
+        .expect("named profile should initialize");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        let mut stream = provider
+            .complete(&[Message::user("hello")], &[], "", None)
+            .await
+            .unwrap();
+        while let Some(event) = stream.next().await {
+            event.unwrap();
+        }
+    });
+
+    let raw = captured.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert!(raw.starts_with("POST /v1/responses "), "{raw}");
+    let raw_headers = raw.split("\r\n\r\n").next().unwrap().to_ascii_lowercase();
+    assert!(raw_headers.contains("x-tenant-id: tenant-123"), "{raw}");
+    assert!(
+        raw_headers.contains("openai-organization: org-test"),
+        "{raw}"
+    );
+    let body: serde_json::Value =
+        serde_json::from_str(raw.split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    assert_eq!(body["model"], "test-model");
+    assert_eq!(body["input"][0]["role"], "user");
+    assert!(body.get("messages").is_none());
+}
+
+#[test]
 fn named_openai_compatible_provider_exposes_static_models_as_routes() {
     let _lock = ENV_LOCK.lock();
     let _namespace = EnvVarGuard::remove("JCODE_OPENROUTER_CACHE_NAMESPACE");
@@ -1389,6 +1436,7 @@ fn make_provider() -> OpenRouterProvider {
         static_models: Vec::new(),
         static_context_limits: HashMap::new(),
         static_image_input_support: HashMap::new(),
+        request_config: NamedProviderRequestConfig::default(),
         send_openrouter_headers: true,
         conversation_id: new_conversation_id(),
         models_cache: Arc::new(RwLock::new(ModelsCache::default())),
@@ -1424,6 +1472,7 @@ fn make_custom_compatible_provider() -> OpenRouterProvider {
         static_models: Vec::new(),
         static_context_limits: HashMap::new(),
         static_image_input_support: HashMap::new(),
+        request_config: NamedProviderRequestConfig::default(),
         send_openrouter_headers: false,
         conversation_id: new_conversation_id(),
         models_cache: Arc::new(RwLock::new(ModelsCache::default())),
@@ -3196,6 +3245,7 @@ fn midstream_transport_fault_emits_retry_rollback_before_replay() {
             ProviderAuth::None {
                 label: "test".to_string(),
             },
+            reqwest::header::HeaderMap::new(),
             false,
             new_conversation_id(),
             request,
