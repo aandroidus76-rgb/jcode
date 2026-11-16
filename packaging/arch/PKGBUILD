@@ -13,7 +13,7 @@ sha256sums=()
 
 build() {
     cd "$_repo_root"
-    cargo build --locked --release -p jcode --bin jcode
+    cargo build --release  --bin jcode
 }
 
 package() {
