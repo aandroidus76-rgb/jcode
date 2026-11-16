@@ -31,12 +31,17 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Syu --noconfirm --needed \
-            base-devel ca-certificates cmake git pkgconf rust
+            base-devel ca-certificates cmake git pkgconf rust shadow
 
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           persist-credentials: false
+
+      - name: Prepare unprivileged package builder
+        run: |
+          useradd --create-home builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
 
       - name: Report Arch and Rust versions
         run: |
@@ -44,19 +49,26 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: Build jcode
-        run: cargo build --locked --release -p jcode --bin jcode
+      - name: Build Arch package
+        working-directory: packaging/arch
+        run: |
+          runuser -u builder -- env \
+            HOME=/home/builder \
+            CARGO_HOME=/home/builder/.cargo \
+            CARGO_BUILD_RUSTC_WRAPPER="" \
+            CARGO_BUILD_JOBS=3 \
+            makepkg --nodeps --noconfirm --cleanbuild
 
-      - name: Verify binary and package build artifact
+      - name: Install and verify Arch package
         run: |
           set -eu
-          ./target/release/jcode --no-update --no-selfdev --version
-          mkdir -p dist
-          tar -czf dist/jcode-archlinux-x86_64.tar.gz \
-            -C target/release jcode
+          package="$(find packaging/arch -maxdepth 1 -name 'jcode-*.pkg.tar.zst' -print -quit)"
+          test -n "$package"
+          pacman -U --noconfirm "$package"
+          jcode --no-update --no-selfdev --version
 
       - uses: actions/upload-artifact@v4
         with:
           name: jcode-archlinux-x86_64
-          path: dist/jcode-archlinux-x86_64.tar.gz
+          path: packaging/arch/jcode-*.pkg.tar.zst
           if-no-files-found: error
