@@ -9,25 +9,37 @@ struct Tip {
     text: String,
 }
 
-fn all_tips() -> Vec<Tip> {
-    let mut tips = vec![
-        "Ctrl+J / Ctrl+K to jump between user prompts (Cmd+J / Cmd+K on macOS terminals that forward Command)",
-        "Ctrl+Shift+J / Ctrl+Shift+K to scroll the chat down and up one line",
-        "Ctrl+G to bookmark your scroll position - press again to teleport back",
+fn tip_texts(keybinding_hints: bool, mermaid: bool) -> Vec<&'static str> {
+    let mut tips = if keybinding_hints {
+        vec![
+            "Ctrl+J / Ctrl+K to jump between user prompts (Cmd+J / Cmd+K on macOS terminals that forward Command)",
+            "Ctrl+Shift+J / Ctrl+Shift+K to scroll the chat down and up one line",
+            "Ctrl+G to bookmark your scroll position - press again to teleport back",
+            "Alt+B moves a long-running tool to the background - the agent continues and can check on it later with the `bg` tool",
+            "Most terminals can be configured to copy text on highlight - no Ctrl+C needed. Check your terminal's settings for 'copy on select'",
+            "Alt+G shows the git commit log of your project. /diff cycles diff mode: Off, Inline, Pinned, File. Shift+Tab cycles favorited models. Pinned shows all diffs in a side pane. File shows the full file with changes highlighted, synced to your scroll position",
+        ]
+    } else {
+        Vec::new()
+    };
+    tips.extend([
         "Swarms form automatically when multiple sessions share a repo - they coordinate plans, share context, and track file conflicts",
         "Memories are stored in a graph with semantic embeddings - recall finds related facts even if you use different words",
         "Ambient mode runs background cycles while you're away - maintaining memories, compacting context, and doing proactive work",
         "Ambient cycles can email you a summary and you can reply with directives for the next run",
-        "Alt+B moves a long-running tool to the background - the agent continues and can check on it later with the `bg` tool",
-        "Most terminals can be configured to copy text on highlight - no Ctrl+C needed. Check your terminal's settings for 'copy on select'",
-        "Alt+G shows the git commit log of your project. /diff cycles diff mode: Off, Inline, Pinned, File. Shift+Tab cycles favorited models. Pinned shows all diffs in a side pane. File shows the full file with changes highlighted, synced to your scroll position",
-    ];
-    if crate::config::config().features.mermaid {
-        tips.insert(3, "```mermaid code blocks render as diagrams");
+    ]);
+    if mermaid {
+        tips.insert(0, "```mermaid code blocks render as diagrams");
     }
+    tips
+}
+
+fn all_tips() -> Vec<Tip> {
+    let config = crate::config::config();
     // Mac keyboards label this modifier ⌥, not Alt, so rewrite hints there.
     let alt = jcode_tui_core::keybind::alt_label();
-    tips.into_iter()
+    tip_texts(config.display.keybinding_hints, config.features.mermaid)
+        .into_iter()
         .map(|text| Tip {
             text: text.replace("Alt+", &format!("{alt}+")),
         })
@@ -132,5 +144,28 @@ mod footer_tests {
         let card = render_tips_widget(Rect::new(0, 0, 40, 10));
         assert_eq!(card.footer.unwrap().to_string(), "rotates 15s");
         assert!(!card.lines.is_empty());
+    }
+
+    #[test]
+    fn disabling_keybinding_hints_removes_shortcut_tips() {
+        let tips = tip_texts(false, false);
+
+        assert!(tips.iter().all(|tip| {
+            !tip.contains("Ctrl+")
+                && !tip.contains("Cmd+")
+                && !tip.contains("Alt+")
+                && !tip.contains("Shift+Tab")
+        }));
+        assert!(
+            tips.iter()
+                .any(|tip| tip.starts_with("Swarms form automatically"))
+        );
+    }
+
+    #[test]
+    fn keybinding_tips_remain_enabled_by_default() {
+        let tips = tip_texts(true, false);
+
+        assert!(tips.iter().any(|tip| tip.starts_with("Ctrl+J")));
     }
 }
