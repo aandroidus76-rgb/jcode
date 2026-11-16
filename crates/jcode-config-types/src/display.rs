@@ -94,9 +94,8 @@ pub struct DisplayConfig {
     pub tool_call_details: bool,
     /// Native terminal scrollbar configuration for scrollable panes
     pub native_scrollbars: NativeScrollbarConfig,
-    /// Surface occasional "learn this keybinding" nudges when the user keeps
-    /// performing an action the slow way (slash command) instead of using its
-    /// configured shortcut (default: true). Set false to disable all such hints.
+    /// Show keybinding feedback and rotating tips (default: true). Set false to
+    /// disable all keybinding hints and tips.
     #[serde(default = "default_true")]
     pub keybinding_hints: bool,
     /// Color theme: "auto" (detect terminal background), "dark", or "light".

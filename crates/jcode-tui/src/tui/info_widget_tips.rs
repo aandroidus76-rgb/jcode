@@ -10,24 +10,22 @@ struct Tip {
 }
 
 fn tip_texts(keybinding_hints: bool, mermaid: bool) -> Vec<&'static str> {
-    let mut tips = if keybinding_hints {
-        vec![
-            "Ctrl+J / Ctrl+K to jump between user prompts (Cmd+J / Cmd+K on macOS terminals that forward Command)",
-            "Ctrl+Shift+J / Ctrl+Shift+K to scroll the chat down and up one line",
-            "Ctrl+G to bookmark your scroll position - press again to teleport back",
-            "Alt+B moves a long-running tool to the background - the agent continues and can check on it later with the `bg` tool",
-            "Most terminals can be configured to copy text on highlight - no Ctrl+C needed. Check your terminal's settings for 'copy on select'",
-            "Alt+G shows the git commit log of your project. /diff cycles diff mode: Off, Inline, Pinned, File. Shift+Tab cycles favorited models. Pinned shows all diffs in a side pane. File shows the full file with changes highlighted, synced to your scroll position",
-        ]
-    } else {
-        Vec::new()
-    };
-    tips.extend([
+    if !keybinding_hints {
+        return Vec::new();
+    }
+
+    let mut tips = vec![
+        "Ctrl+J / Ctrl+K to jump between user prompts (Cmd+J / Cmd+K on macOS terminals that forward Command)",
+        "Ctrl+Shift+J / Ctrl+Shift+K to scroll the chat down and up one line",
+        "Ctrl+G to bookmark your scroll position - press again to teleport back",
+        "Alt+B moves a long-running tool to the background - the agent continues and can check on it later with the `bg` tool",
+        "Most terminals can be configured to copy text on highlight - no Ctrl+C needed. Check your terminal's settings for 'copy on select'",
+        "Alt+G shows the git commit log of your project. /diff cycles diff mode: Off, Inline, Pinned, File. Shift+Tab cycles favorited models. Pinned shows all diffs in a side pane. File shows the full file with changes highlighted, synced to your scroll position",
         "Swarms form automatically when multiple sessions share a repo - they coordinate plans, share context, and track file conflicts",
         "Memories are stored in a graph with semantic embeddings - recall finds related facts even if you use different words",
         "Ambient mode runs background cycles while you're away - maintaining memories, compacting context, and doing proactive work",
         "Ambient cycles can email you a summary and you can reply with directives for the next run",
-    ]);
+    ];
     if mermaid {
         tips.insert(0, "```mermaid code blocks render as diagrams");
     }
@@ -48,8 +46,12 @@ fn all_tips() -> Vec<Tip> {
 
 static TIP_STATE: Mutex<Option<(usize, Instant)>> = Mutex::new(None);
 
-fn current_tip(_max_width: usize) -> Tip {
+fn current_tip(_max_width: usize) -> Option<Tip> {
     let tips = all_tips();
+    if tips.is_empty() {
+        return None;
+    }
+
     let mut guard = TIP_STATE.lock().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
     let (idx, last) = guard.get_or_insert_with(|| (0, now));
@@ -62,9 +64,9 @@ fn current_tip(_max_width: usize) -> Tip {
 
     let i = *idx % tips.len();
     drop(guard);
-    Tip {
+    Some(Tip {
         text: tips[i].text.clone(),
-    }
+    })
 }
 
 pub(crate) fn occasional_status_tip(max_width: usize, elapsed_secs: u64) -> Option<String> {
@@ -84,7 +86,7 @@ pub(crate) fn occasional_status_tip(max_width: usize, elapsed_secs: u64) -> Opti
         return None;
     }
 
-    let tip = current_tip(available);
+    let tip = current_tip(available)?;
     Some(format!("{}{}", prefix, clip(&tip.text, available)))
 }
 
@@ -114,7 +116,9 @@ fn wrap_tip_text(text: &str, width: usize) -> Vec<String> {
 /// Border layout: `💡 Did you know?` top-left, the wrapped tip in the body.
 pub(super) fn render_tips_widget(inner: Rect) -> super::frame::Framed {
     let w = inner.width as usize;
-    let tip = current_tip(w);
+    let Some(tip) = current_tip(w) else {
+        return super::frame::Framed::default();
+    };
     let wrapped = wrap_tip_text(&tip.text, w);
 
     let lines: Vec<Line<'static>> = wrapped
@@ -147,25 +151,20 @@ mod footer_tests {
     }
 
     #[test]
-    fn disabling_keybinding_hints_removes_shortcut_tips() {
+    fn disabling_keybinding_hints_hides_all_tips() {
         let tips = tip_texts(false, false);
+        assert!(tips.is_empty());
+        assert!(tip_texts(false, true).is_empty());
+    }
 
-        assert!(tips.iter().all(|tip| {
-            !tip.contains("Ctrl+")
-                && !tip.contains("Cmd+")
-                && !tip.contains("Alt+")
-                && !tip.contains("Shift+Tab")
-        }));
+    #[test]
+    fn tips_remain_enabled_by_default() {
+        let tips = tip_texts(true, false);
+
+        assert!(tips.iter().any(|tip| tip.starts_with("Ctrl+J")));
         assert!(
             tips.iter()
                 .any(|tip| tip.starts_with("Swarms form automatically"))
         );
-    }
-
-    #[test]
-    fn keybinding_tips_remain_enabled_by_default() {
-        let tips = tip_texts(true, false);
-
-        assert!(tips.iter().any(|tip| tip.starts_with("Ctrl+J")));
     }
 }

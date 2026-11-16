@@ -243,9 +243,8 @@ prompt_entry_animation = true
 # technical detail.
 # tool_call_details = false
 
-# Occasionally surface a "learn this keybinding" nudge (in a distinct color)
-# when you keep doing something the slow way (e.g. /resume) instead of using
-# its configured shortcut. Set false to disable all such hints (default: true).
+# Show keybinding feedback and rotating tips (default: true). Set false to
+# disable all keybinding hints and tips.
 # keybinding_hints = true
 
 # Active sessions manager: pressing Left arrow on an empty input opens a
