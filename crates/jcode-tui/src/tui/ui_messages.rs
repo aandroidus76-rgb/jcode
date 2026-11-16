@@ -82,6 +82,7 @@ fn render_single_line_system_notice(
         Some("Skills" | "Context" | "Support" | "Cloud transfer" | "Todo completion" | "Rewind")
     ) || msg.content.starts_with("Shell command · ")
         || msg.content.starts_with("Authentication Status:")
+        || msg.content.starts_with("[guardrail] ")
         || (msg.content.contains('\n') && msg.content.contains("/cancel"))
     {
         return None;

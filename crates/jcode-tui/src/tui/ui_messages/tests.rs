@@ -498,6 +498,25 @@ fn transient_system_notices_are_single_line_without_changing_content() {
 }
 
 #[test]
+fn provider_guardrail_notices_wrap_without_truncating_the_error() {
+    let content = "[guardrail] The model ended its turn without any visible output (stop_reason: unknown). The provider returned an empty response; this is usually a transient upstream failure rather than a content filter. Retrying the request may help.";
+    let msg = DisplayMessage::system(content);
+    let lines = render_system_message(&msg, 48, crate::config::DiffDisplayMode::Off);
+
+    assert!(lines.len() > 1, "{lines:?}");
+    assert!(lines.iter().all(|line| line.width() <= 48), "{lines:?}");
+    let rendered = lines
+        .iter()
+        .map(extract_line_text)
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        rendered.split_whitespace().collect::<Vec<_>>().join(" "),
+        content.split_whitespace().collect::<Vec<_>>().join(" ")
+    );
+}
+
+#[test]
 fn ordinary_multiline_and_markdown_notices_are_one_terminal_row() {
     let saved = markdown::center_code_blocks();
     for centered in [false, true] {
